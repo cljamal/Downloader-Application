@@ -11,6 +11,5 @@
 |
 */
 
-Route::get('/', function () {
-    return view('welcome');
-});
+Route::get('/', 'FileHandlerController@downloadPage');
+Route::get('/get-file/{file}', 'FileHandlerController@getFile');
