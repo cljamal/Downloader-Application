@@ -24,7 +24,7 @@ class FileUploadingTest extends TestCase
         $response = $this->json('GET', '/api/get-files');
         $response->assertStatus(200);
     }
- 
+
 
     public function testDownloadLink()
     {
