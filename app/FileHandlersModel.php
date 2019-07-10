@@ -14,5 +14,6 @@ class FileHandlersModel extends Model
         'file_storage',
         'file_url',
         'file_status',
+        'file_error_info',
     ];
 }

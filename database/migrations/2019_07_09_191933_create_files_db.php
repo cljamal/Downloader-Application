@@ -20,6 +20,7 @@ class CreateFilesDb extends Migration
             $table->string('file_storage')->nullable();
             $table->string('file_url');
             $table->string('file_status')->nullable();
+            $table->text('file_error_info')->nullable();
             $table->timestamps();
         });
     }

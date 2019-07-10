@@ -4,9 +4,12 @@ namespace App\Http\Controllers;
 
 use App\FileHandlersModel;
 use App\Jobs\DownloadFileJob;
-use Illuminate\Http\Request;
+use Illuminate\Http\Request; 
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
+use Illuminate\Http\JsonResponse;
+use Illuminate\View\View;
+use Symfony\Component\HttpFoundation\BinaryFileResponse;
 
 class FileHandlerController extends Controller
 {
@@ -18,7 +21,7 @@ class FileHandlerController extends Controller
 
     /**
      * Index page view interface
-     * @return \Illuminate\Contracts\View\Factory|\Illuminate\View\View
+     * @return View
      */
     public function downloadPage()
     {
@@ -30,7 +33,7 @@ class FileHandlerController extends Controller
      *
      * @param Request $request
      * @param null $url
-     * @return \Illuminate\Http\JsonResponse|string
+     * @return JsonResponse|string
      */
     public function downloadLink( Request $request, $url = null )
     {
@@ -47,7 +50,6 @@ class FileHandlerController extends Controller
                 'file_status' => 'pending',
             ]);
             DownloadFileJob::dispatch( $file );
-
             return 'File downloading';
         }
         return response()->json('Url is empty');
@@ -56,7 +58,7 @@ class FileHandlerController extends Controller
     /**
      * API method to get all files list
      *
-     * @return FileHandlersModel[]|\Illuminate\Database\Eloquent\Collection
+     * @return FileHandlersModel[]
      */
     public function getFilesList()
     {
@@ -67,7 +69,7 @@ class FileHandlerController extends Controller
      * Getting single file from storage
      *
      * @param FileHandlersModel $file
-     * @return string|\Symfony\Component\HttpFoundation\BinaryFileResponse
+     * @return string|BinaryFileResponse
      */
     public function getFile( FileHandlersModel $file ){
 
@@ -82,7 +84,7 @@ class FileHandlerController extends Controller
     /**
      * Main download handler
      * @param FileHandlersModel $file
-     * @return \Illuminate\Http\JsonResponse
+     * @return JsonResponse
      */
     public function downloadFile( FileHandlersModel $file ){
         $file_name = basename( $file->file_url );
@@ -99,9 +101,12 @@ class FileHandlerController extends Controller
             $file->update(['file_name' => $file_name ]);
 
             try {
-                $downloading = file_get_contents( $file->file_url );
+                $downloading = $this->getFileCurl( $file->file_url );
             } catch (\Exception $e) {
-                $file->update(['file_status' => 'error']);
+                $file->update([
+                    'file_status' => 'error',
+                    'file_error_info' => $e->getMessage()
+                ]);
                 return response()->json('File not found');
             }
 
@@ -109,7 +114,10 @@ class FileHandlerController extends Controller
                 Storage::disk( $file->file_storage )->put( $file_name, $downloading );
                 $file->update(['file_status' => 'complete']);
             }catch (\Exception $e){
-                $file->update(['file_status' => 'error']);
+                $file->update([
+                    'file_status' => 'error',
+                    'file_error_info' => $e->getMessage()
+                ]);
             }
 
             return response()->json('File downloading');
@@ -127,16 +135,26 @@ class FileHandlerController extends Controller
     private function checkForMimes($file_name)
     {
         $acceptedMimes = [
+            // Images
             'bmp',
             'svg',
+            'jpg',
+            'jpeg',
             'png',
             'gif',
+            'webp',
+
+            //Archives
+            'zip',
+            'rar',
+            'iso',
+
+            // Documents
             'pdf',
             'doc',
             'docx',
             'xls',
             'xlsx',
-            'iso',
         ];
         $file = explode('.', $file_name);
         $mime = array_pop($file);
@@ -147,4 +165,25 @@ class FileHandlerController extends Controller
         return false;
     }
 
+    /**
+     * Get file by curl
+     * @param $url
+     * @return bool|string
+     */
+    public function getFileCurl( $url ){
+        $ch = curl_init();
+
+        curl_setopt($ch, CURLOPT_USERAGENT, 'Chrome/51.0.2704.103');
+        curl_setopt($ch, CURLOPT_AUTOREFERER, TRUE);
+        curl_setopt($ch, CURLOPT_HEADER, 0);
+        curl_setopt($ch, CURLOPT_RETURNTRANSFER, 1);
+        curl_setopt($ch, CURLOPT_URL, $url);
+        curl_setopt($ch, CURLOPT_FOLLOWLOCATION, TRUE);
+
+        $data = curl_exec($ch);
+
+        curl_close($ch);
+
+        return $data;
+    }
 }
